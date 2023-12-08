@@ -1,40 +1,22 @@
-use std::collections::{HashMap};
+use std::collections::{HashMap, HashSet};
 use uuid::{Uuid};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use crate::semantic_analysis;
+
 #[derive(Debug, Serialize, Deserialize)]
-pub struct InvertedIndex {
+pub(crate) struct InvertedIndex {
     pub(crate) documents: HashMap<String, HashMap<String, String>>,
-    pub(crate) tokens: HashMap<String, Vec<String>>
+    pub(crate) tokens: HashMap<String, Vec<String>>,
 }
 
 impl InvertedIndex {
-    // pub fn get_documents(&self, key: String) -> Option<HashMap<String, &HashMap<String, String>>>
-    // {
-    //
-    //     let lowercase = key.to_lowercase();
-    //     let keywords=  semantic_analysis::analyse(&lowercase);
-    //     let mut entries: HashMap<String, &HashMap<String, String>> = HashMap::new();
-    //     for keyword in keywords {
-    //         if !self.tokens.contains_key(keyword.clone().as_str()) {
-    //             return None;
-    //         }
-    //
-    //         let keys = self.tokens.get(keyword.clone().as_str()).unwrap();
-    //         for key in keys {
-    //             if self.documents.contains_key(key.as_str()) {
-    //                 let document = self.documents.get(key.as_str()).unwrap();
-    //                 let id= document.get("_id").unwrap();
-    //                 entries.insert(id.clone(), document);
-    //             }
-    //         }
-    //     }
-    //
-    //     Some(entries)
-    // }
+    pub(crate) fn delete_document(&mut self, id: String) -> &InvertedIndex
+    {
+       return self;
+    }
 
-    pub fn index(&mut self, record: &HashMap<String, String>) -> &InvertedIndex
+    pub(crate) fn index(&mut self, record: &HashMap<String, String>) -> &InvertedIndex
     {
         let document_id: String = Uuid::new_v4().to_string();
         let mut cloned_record = record.clone();
@@ -53,7 +35,7 @@ impl InvertedIndex {
             self.add_token(token, &document_id.clone());
         }
 
-        return self
+        return self;
     }
 
     fn add_token(&mut self, token: &String, document_id: &String) -> &InvertedIndex
@@ -68,42 +50,35 @@ impl InvertedIndex {
         return self;
     }
 
-    pub fn new() -> InvertedIndex
+    pub(crate) fn new() -> InvertedIndex
     {
         InvertedIndex {
             documents: HashMap::new(),
-            tokens: HashMap::new()
+            tokens: HashMap::new(),
         }
     }
 
-    pub fn search(&self, query: String) -> HashMap<String, &HashMap<String, String>>
+    pub(crate) fn search(&self, query: String) -> HashMap<String, &HashMap<String, String>>
     {
         let mut results = HashMap::new();
+        let mut unique_documents = HashSet::new();
 
         let parts = semantic_analysis::analyse(&query);
 
         for part in parts {
-            let tokens = self.tokens.get(&part);
-            match tokens {
-                Some(tokens) => {
-                    for token in tokens {
-                        let document = self.documents.get(token);
-                        match document {
-                            Some(document) => {
-                                let id = document.get("_id").unwrap();
-                                if results.contains_key(id) {
-                                    continue;
-                                }
-                                results.insert(id.clone(), document);
-                            },
-                            None => ()
-                        };
+            if let Some(tokens) = self.tokens.get(&part) {
+                for token in tokens {
+                    if let Some(document) = self.documents.get(token) {
+                        let id = document.get("_id").unwrap();
+                        if unique_documents.insert(id.to_string()) {
+                            // Insert into results only if the document is unique
+                            results.insert(id.to_string(), document);
+                        }
                     }
-                },
-                None => ()
-            };
+                }
+            }
         }
 
-        return results;
+        results
     }
 }

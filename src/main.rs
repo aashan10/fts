@@ -1,6 +1,7 @@
 use std::collections::HashMap;
+use std::io::Write;
 use std::time::Instant;
-use crate::data_structures::InvertedIndex;
+use crate::indexing::{Field, FieldType, IndexMapping};
 
 mod semantic_analysis;
 mod indexing;
@@ -23,28 +24,59 @@ fn main() {
         movies.push(map);
     }
 
-    let mut inverted_index = InvertedIndex::new();
-    println!("Indexing {} documents", movies.len());
-    let start_time = Instant::now();
-    for movie in movies {
-        inverted_index.index(&movie);
+    let mut index_manager = indexing::manager::IndexManager::init();
+    let movies_mapping = IndexMapping {
+        fields: vec![
+            Field {
+                name: "title".to_string(),
+                field_type: FieldType::Text,
+            },
+            Field {
+                name: "title_english".to_string(),
+                field_type: FieldType::Text
+            },
+            Field {
+                name: "title_long".to_string(),
+                field_type: FieldType::Text,
+            },
+            Field {
+                name: "summary".to_string(),
+                field_type: FieldType::Text
+            },
+            Field {
+                name: "description_full".to_string(),
+                field_type: FieldType::Text,
+            },
+            Field {
+                name: "synopsis".to_string(),
+                field_type: FieldType::Text
+            },
+        ]
+    };
+
+    let mut start_time = Instant::now();
+    let mut movies_index = index_manager.create_index("movies".to_string(), movies_mapping).unwrap();
+
+    println!("Took {} micro seconds to create index.", &start_time.elapsed().as_micros());
+    // println!("Indexing..");
+    // let length = &movies.len();
+    // let mut start_time = Instant::now();
+    // for movie in movies {
+    //     println!("Indexing {}", &movie.get("title").unwrap());
+    //     movies_index.index(movie).unwrap();
+    // }
+    // println!("\n\nIndexed {} movies. Took {} micro seconds", length, &start_time.elapsed().as_micros());
+
+    let query = "something";
+    let mut start_time = Instant::now();
+    let results = movies_index.search(query.to_string());
+    println!("\n\nSearched the movies index for `{}`. \nTook {} micro seconds. \n{} hits found.", query, &start_time.elapsed().as_micros(), &results.len());
+    for (_, movie) in results {
+        let id = movie.get("_id").unwrap();
+        let title = movie.get("title").unwrap();
+
+        println!("ID: {}\nTitle: {}", id, title);
     }
-    let end_time = start_time.elapsed();
-    let elapsed_seconds = end_time.as_micros();
-    let tokens = inverted_index.tokens.iter().len();
-    println!("Indexing completed. Took {} micro seconds ({} seconds)", elapsed_seconds, end_time.as_secs());
-    println!("Indexed {} tokens", tokens);
 
-    let keyword = "mad monster party".to_string();
-    let keywords = semantic_analysis::analyse(&keyword);
-
-    for k in keywords {
-
-        let documents = inverted_index.search(k);
-
-        for (id, record) in documents.iter() {
-
-            println!("{}: {:?}\n", id, record.get("title").unwrap());
-        }
-    }
+    // index_manager.save_index(movies_index);
 }
